@@ -83,7 +83,6 @@ def build(rng, xs, days, phi, nonlinear):
     """Return a long DataFrame of (brand, day, proxy, sales) for the given violation."""
     rows = []
     for i, x in enumerate(xs):
-        # proxy-driven component (matched model)
         if nonlinear:                       # saturating concave link (misspecified)
             base = np.power(x, BETA)
             link = base / (1 + base / np.quantile(base, 0.6))
@@ -91,11 +90,9 @@ def build(rng, xs, days, phi, nonlinear):
         else:
             mu = np.exp(rng.normal(np.log(0.05), 0.4)) * np.power(np.maximum(x, 1e-9), BETA)
         s_proxy = mu * rng.lognormal(0, 0.18, len(x))
-        # proxy-independent component: smooth base + random promo spikes (uncorrelated with x)
         promo = rng.gamma(2.0, 1.0, len(x))
         spikes = (rng.random(len(x)) < 0.04) * rng.uniform(5, 15, len(x))
         s_indep = (promo + spikes)
-        # normalize both to equal total, then mix by phi
         s_proxy *= 1.0 / max(s_proxy.mean(), 1e-9)
         s_indep *= 1.0 / max(s_indep.mean(), 1e-9)
         y = np.round(1000 * ((1 - phi) * s_proxy + phi * s_indep)).astype(float)
@@ -146,4 +143,5 @@ for ax, lab in zip(axes, "AB"):
 for ext in ("pdf", "png"):
     fig.savefig(FIG / f"fig5_misspecification.{ext}")
 print("\nwrote fig5_misspecification")
-"""end"""
+print(f"matched (phi=0): proxy within-R2 = {res[(~res.nonlinear)&(res.phi==0)].within_R2_proxy.iloc[0]:.3f}")
+print(f"fully indep (phi=1): proxy within-R2 = {res[(~res.nonlinear)&(res.phi==1)].within_R2_proxy.iloc[0]:.3f}")

@@ -29,10 +29,17 @@ exactly.
 
 ## Headline results (on the released synthetic benchmark)
 
-- Shared elasticity recovered to within **0.3%** of its true value.
-- Held-out daily reconstruction **R² = 0.86** (brands unseen during estimation).
-- **17.6%** lower daily error (sMAPE) than the uniform split used by naive pipelines.
-- Aggregate conservation error ≈ **9×10⁻⁵ %** (exact by construction).
+The benchmark's data-generating process shares the estimator's functional form,
+so it verifies **correctness and sensitivity**, not real-world validity (see the
+paper's Limitations and the misspecification study).
+
+- The proxy recovers ~**29%** (monthly) / ~**31%** (weekly) of the *within-period*
+  (shape-only) variance that a uniform split leaves entirely unexplained.
+- Using the proxy at all drives the gain; estimating the elasticity is a
+  **robustness safeguard** (statistically tied with raw-proxy on this data).
+- Under deliberate misspecification the method **degrades gracefully** to the
+  uniform baseline and never below it.
+- Aggregate conservation is exact (a constraint, not an accuracy result).
 
 ## Repository layout
 
@@ -40,16 +47,18 @@ exactly.
 affiliate-granularity-proxy/
 ├── paper/
 │   ├── main.tex            # manuscript (LaTeX)
-│   ├── main.pdf            # compiled paper (12 pp.)
+│   ├── main.pdf            # compiled paper
 │   ├── refs.bib            # bibliography (24 verified references)
 │   └── figures/            # figures (PDF + PNG)
 ├── code/
 │   ├── generate_dataset.py # reproducible synthetic-data generator (seeded)
-│   ├── run_experiments.py  # estimation + 5-fold leave-units-out validation
+│   ├── run_experiments.py  # estimation + repeated leave-units-out (monthly+weekly)
+│   ├── robustness.py       # model-misspecification study (graceful degradation)
 │   └── make_figures.py     # journal-quality figures
 ├── data/                   # released synthetic dataset (CSV) + dictionary
 ├── results/                # metrics + predictions produced by the experiments
 ├── REVIEW.md               # internal peer-review / ScholarEval record
+├── RESPONSE_TO_REVIEW.md   # point-by-point response to external review
 ├── requirements.txt
 └── LICENSE                 # MIT
 ```
@@ -60,7 +69,8 @@ affiliate-granularity-proxy/
 pip install -r requirements.txt
 
 python code/generate_dataset.py     # writes data/*.csv (seed = 20260623)
-python code/run_experiments.py      # writes results/*.csv, results/metrics.json
+python code/run_experiments.py      # repeated leave-units-out (monthly+weekly) -> results/*
+python code/robustness.py           # misspecification study -> results/robustness.csv, fig5
 python code/make_figures.py         # writes paper/figures/*.{pdf,png}
 
 # compile the paper
@@ -69,21 +79,12 @@ cd paper && pdflatex main && bibtex main && pdflatex main && pdflatex main
 
 ## A note on large files
 
-To keep the repository light, the **large daily CSVs** (`behavioral_proxy_daily.csv`,
-`sales_calibration_daily.csv`, `sales_target_aggregate.csv`), the full `results/`
+To keep the repository light, the **large daily CSVs**, the full `results/`
 predictions, the figure images, and the compiled `paper/main.pdf` are **not
-committed**; they regenerate **bit-for-bit** from the seeded scripts:
-
-```bash
-python code/generate_dataset.py   # -> all data/*.csv
-python code/run_experiments.py    # -> all results/*
-python code/make_figures.py        # -> paper/figures/*
-cd paper && pdflatex main && bibtex main && pdflatex main && pdflatex main
-```
-
-The small `data/brand_registry.csv`, `results/metrics.json`, and
-`results/cv_summary.csv` are included so the dataset structure and headline
-numbers are visible without running anything.
+committed**; they regenerate **bit-for-bit** from the seeded scripts (see
+commands above). The small `data/brand_registry.csv`, `results/metrics.json`,
+and `results/cv_summary_*.csv` / `results/robustness.csv` are included so the
+dataset structure and headline numbers are visible without running anything.
 
 ## Data & privacy
 

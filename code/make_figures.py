@@ -42,7 +42,7 @@ proxy = pd.read_csv(DATA / "behavioral_proxy_daily.csv", parse_dates=["date"])
 cal = pd.read_csv(DATA / "sales_calibration_daily.csv", parse_dates=["date"])
 reg = pd.read_csv(DATA / "brand_registry.csv")
 per_brand = pd.read_csv(RES / "per_brand_beta.csv")
-cv = pd.read_csv(RES / "cv_results_by_fold.csv")
+cv = pd.read_csv(RES / "cv_results_all.csv")
 preds = pd.read_csv(RES / "holdout_predictions.csv", parse_dates=["date"])
 
 # =================================================================== FIG 1: the problem
@@ -87,7 +87,6 @@ save(fig, "fig2_beta_recovery")
 fig = plt.figure(figsize=(7.1, 5.4))
 gs = fig.add_gridspec(2, 2, hspace=0.42, wspace=0.32)
 
-# (A) scatter true vs estimated daily (proxy power)
 axA = fig.add_subplot(gs[0, 0])
 a = preds.sales_units.to_numpy(float)
 f = preds.est_proxy_power.to_numpy(float)
@@ -99,25 +98,24 @@ axA.plot(lim, lim, color="black", lw=0.8, ls="--")
 axA.set_xlim(lim); axA.set_ylim(lim)
 axA.set_xlabel("True daily sales (units)")
 axA.set_ylabel("Estimated daily sales (units)")
-axA.set_title(f"Held-out reconstruction (proxy)\n$R^2$ = {R2:.3f}")
+axA.set_title(f"Held-out reconstruction (proxy)\npooled $R^2$ = {R2:.3f}")
 despine(axA)
 
-# (B) method comparison bars (sMAPE & R2) with fold error bars
 axB = fig.add_subplot(gs[0, 1])
-order = ["uniform", "proxy_linear(beta=1)", "proxy_power(beta_hat)"]
+order = ["uniform", "proxy_linear", "proxy_power"]
 labels = ["Uniform", "Proxy linear\n($\\beta$=1)", "Proxy power\n($\\hat{\\beta}$)"]
-m = cv.groupby("method").sMAPE.agg(["mean", "std"]).reindex(order)
+cvm = cv[cv.freq == "M"]
+m = cvm.groupby("method").sMAPE.agg(["mean", "std"]).reindex(order)
 x = np.arange(len(order))
 axB.bar(x, m["mean"], yerr=m["std"], capsize=3,
         color=[OK[5], OK[0], OK[2]], alpha=0.9, edgecolor="white")
 axB.set_xticks(x); axB.set_xticklabels(labels, fontsize=6.5)
 axB.set_ylabel("sMAPE (%)  - lower is better")
-axB.set_title("Daily reconstruction error (5-fold leave-units-out)")
+axB.set_title("Daily sMAPE (repeated leave-units-out)")
 for xi, v in zip(x, m["mean"]):
     axB.text(xi, v + 0.3, f"{v:.1f}", ha="center", fontsize=6.5)
 despine(axB)
 
-# (C) reconstruction time-series example for one held-out brand-month
 axC = fig.add_subplot(gs[1, 0])
 ex_b = preds.brand_id.iloc[0]
 sub = preds[preds.brand_id == ex_b].sort_values("date")
@@ -131,7 +129,6 @@ axC.legend(frameon=False, fontsize=6.5)
 axC.tick_params(axis="x", rotation=30)
 despine(axC)
 
-# (D) beta sensitivity sweep - why estimate beta
 axD = fig.add_subplot(gs[1, 1])
 rng = np.random.default_rng(123)
 betas = np.linspace(0.3, 1.7, 11)
@@ -154,7 +151,6 @@ def sweep_once(true_beta):
         y = np.round(np.exp(rng.normal(np.log(0.05), 0.4)) * np.power(np.maximum(x, 1e-9), true_beta)
                      * rng.lognormal(0, 0.18, len(days))).astype(float)
         series.append((x, y))
-    # estimate beta from first 8 brands (within), test on last 4
     lx = np.concatenate([np.log(np.maximum(s[0], 1)) for s in series[:8]])
     ly = np.concatenate([np.log(np.maximum(s[1], 1)) for s in series[:8]])
     g = np.concatenate([[i] * len(series[i][0]) for i in range(8)])
@@ -190,6 +186,26 @@ for ax, lab in zip([axA, axB, axC, axD], "ABCD"):
     ax.text(-0.16, 1.06, lab, transform=ax.transAxes, fontsize=11, fontweight="bold", va="top")
 save(fig, "fig3_results")
 
+# =================================================================== FIG 4: within-period (shape) R^2
+figW, axW = plt.subplots(figsize=(4.3, 3.0))
+ordW = ["uniform", "proxy_linear", "proxy_power"]
+labW = ["Uniform", "Proxy linear", "Proxy power"]
+bw = 0.38
+xp = np.arange(len(ordW))
+for j, (frq, col, lab) in enumerate([("M", OK[4], "Monthly targets"), ("W", OK[0], "Weekly targets")]):
+    sub = cv[cv.freq == frq].groupby("method").within_R2.agg(["mean", "std"]).reindex(ordW)
+    axW.bar(xp + (j - 0.5) * bw, sub["mean"], bw, yerr=sub["std"], capsize=3,
+            color=col, alpha=0.9, edgecolor="white", label=lab)
+axW.set_xticks(xp); axW.set_xticklabels(labW, fontsize=7)
+axW.set_ylabel("Within-period $R^2$ (shape only)")
+axW.set_title("Shape recovery, isolated from the\nconserved total (30 random partitions)")
+axW.legend(frameon=False, fontsize=6.5)
+despine(axW)
+save(figW, "fig4_within_period_r2")
+
 print("\nKey numbers for the paper:")
-print(f"  held-out R2 (proxy)          : {R2:.3f}")
+print(f"  pooled held-out R2 (proxy)   : {R2:.3f}")
 print(f"  per-brand beta mean +/- sd   : {per_brand.beta_b.mean():.3f} +/- {per_brand.beta_b.std():.3f}")
+print(f"  sMAPE uniform/linear/power   : "
+      f"{m.loc['uniform','mean']:.2f} / {m.loc['proxy_linear','mean']:.2f} / "
+      f"{m.loc['proxy_power','mean']:.2f}")
