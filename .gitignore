@@ -1,0 +1,17 @@
+# LaTeX build artifacts
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.toc
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.synctex.gz
+paper/pg*.png
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store

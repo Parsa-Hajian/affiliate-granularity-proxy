@@ -1,0 +1,6 @@
+,sMAPE,sMAPE,MAE,MAE,R2,R2,aggregate_abs_error,aggregate_abs_error
+,mean,std,mean,std,mean,std,mean,std
+method,,,,,,,,
+proxy_linear(beta=1),14.1328,0.2541,5.5864,5.6096,0.8575,0.0937,0.0,0.0
+proxy_power(beta_hat),14.0928,0.2407,5.5787,5.6212,0.8587,0.0929,0.0,0.0
+uniform,17.1036,0.2878,6.6989,6.764,0.802,0.1352,0.0,0.0

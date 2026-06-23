@@ -1,0 +1,32 @@
+{
+  "seed_estimation": 7,
+  "beta_true_shared": 0.88,
+  "beta_estimated_full_sample": 0.8824,
+  "per_brand_beta_mean": 0.8827,
+  "per_brand_beta_std": 0.0519,
+  "n_calibration_brands": 22,
+  "n_target_brands": 38,
+  "cv_summary": {
+    "proxy_linear(beta=1)": {
+      "sMAPE_mean": 14.133,
+      "sMAPE_std": 0.254,
+      "MAE_mean": 5.5864,
+      "R2_mean": 0.8575
+    },
+    "proxy_power(beta_hat)": {
+      "sMAPE_mean": 14.093,
+      "sMAPE_std": 0.241,
+      "MAE_mean": 5.5787,
+      "R2_mean": 0.8587
+    },
+    "uniform": {
+      "sMAPE_mean": 17.104,
+      "sMAPE_std": 0.288,
+      "MAE_mean": 6.6989,
+      "R2_mean": 0.802
+    }
+  },
+  "target_aggregate_conservation_max_pct_err": 8.7e-05,
+  "error_reduction_vs_uniform_pct": 17.6,
+  "error_reduction_vs_proxy_linear_pct": 0.28
+}
