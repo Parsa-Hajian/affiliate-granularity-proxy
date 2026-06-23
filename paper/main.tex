@@ -50,13 +50,19 @@ proxy-to-sales relationship is \emph{shared across brands} and learn it on
 transfer it to ``target'' units that report only aggregates plus the daily
 proxy. Because a per-brand intercept cancels in the disaggregation weights,
 only a shared elasticity is required, so a brand with \emph{no} daily sales can
-still be disaggregated while exactly conserving its reported total. On a
-public, fully synthetic dataset of 60 brands over three years---calibrated to
-an operational pipeline and released under a strict anonymization
-protocol---a five-fold leave-units-out design recovers the shared elasticity
-to within $0.3\%$ of its true value and reconstructs held-out daily sales with
-$R^2=0.86$, reducing daily error by $17.6\%$ relative to the uniform split used
-by naive integration pipelines. We describe the production system---behavioral
+still be disaggregated while exactly conserving its reported total. We evaluate
+on a public, fully synthetic benchmark (60 brands, three years) released under a
+strict anonymization protocol; because its data-generating process shares the
+estimator's functional form, the experiments verify correctness and quantify
+sensitivity rather than establishing the assumption in the wild. Under repeated
+leave-units-out validation, the proxy recovers about $29\%$ of the
+within-period (shape-only) variance that a uniform split leaves entirely
+unexplained, cutting within-period error by roughly $17\%$ for both monthly and
+weekly reporters; weighting by the raw proxy already captures almost all of this
+gain, while estimating the elasticity is a robustness safeguard. A deliberate
+misspecification study shows the method degrades gracefully toward the uniform
+baseline as sales become proxy-independent, never doing worse. We describe the
+production system---behavioral
 data from analytics platforms (e.g.\ GA4) joined to partner financials,
 unified into one schema, and refreshed by a scheduled large-language-model
 agent---and discuss when the shared-relationship assumption holds. All code and
@@ -120,9 +126,10 @@ describe an end-to-end production system that joins behavioral analytics to
 partner financials and is operated by a scheduled large-language-model agent
 (Section~\ref{sec:system}).
 \item We release a \emph{public, fully synthetic, anonymized} dataset and a
-reproducible benchmark (Section~\ref{sec:data}), and we validate the method with
-a leave-units-out design that directly tests the cross-unit transfer
-(Sections~\ref{sec:experiments}--\ref{sec:results}).
+reproducible benchmark (Section~\ref{sec:data}), validate the method with a
+repeated leave-units-out design for both monthly and weekly reporters
+(Sections~\ref{sec:experiments}--\ref{sec:results}), and stress-test it under
+deliberate model misspecification (Section~\ref{sec:robust}).
 \end{enumerate}
 
 % ================================================================= RELATED
@@ -357,7 +364,10 @@ slope $\beta_b=\beta+\varepsilon_b$, $\varepsilon_b\sim\mathcal{N}(0,s_\beta^2)$
 times multiplicative lognormal noise. We set the shared elasticity $\beta=0.88$
 and $s_\beta=0.05$, so the shared-relationship assumption holds only
 \emph{approximately}---a deliberate stress test. Monetary value is units times a
-brand average order value.
+brand average order value. We emphasize, and return to in
+Section~\ref{sec:limitations}, that this process shares the estimator's
+functional form: the benchmark therefore tests correct estimation and
+sensitivity, not whether real ecosystems obey the assumption.
 
 \paragraph{Released files.}
 The dataset spans 60 brands over 1{,}096 days (2023--2025):
@@ -401,28 +411,47 @@ unobserved and must be estimated.}
 % ================================================================= EXPERIMENTS
 \section{Experimental Design}\label{sec:experiments}
 
-We evaluate the central claim---that the proxy-to-sales relationship transfers
-across brands---with a \emph{five-fold leave-units-out} protocol. The 22
-calibration brands are partitioned into five folds. In each fold, $\hat{\beta}$
-is estimated (Eq.~\ref{eq:beta}) on the brands \emph{outside} the fold; the
-held-out brands are then treated as pseudo-targets: their true daily sales are
-aggregated to monthly totals, the daily series is reconstructed from those
-totals using the transferred $\hat{\beta}$ (Eq.~\ref{eq:weights}), and the
-reconstruction is compared against the known daily truth. Because $\hat\beta$
-never sees the held-out brands, this measures genuine cross-unit transfer.
+\paragraph{What the synthetic benchmark can and cannot show.}
+We state this plainly because it governs how the results should be read. The
+data-generating process (Section~\ref{sec:data}) draws sales from the same
+log-log form the estimator fits, so the benchmark cannot, by itself, establish
+that real affiliate ecosystems satisfy the shared-elasticity assumption. What it
+\emph{can} do is (i)~verify the estimator is implemented correctly and is
+well-behaved, (ii)~quantify how accuracy responds to a controlled assumption
+violation, and (iii)~separate the part of the gain that comes from the cross-unit
+machinery from the part that comes merely from using the proxy at all. The
+misspecification study of Section~\ref{sec:robust} provides the complementary
+evidence by breaking the model--DGP match on purpose.
+
+\paragraph{Protocol.}
+We use \emph{repeated leave-units-out} cross-validation: $30$ random partitions
+of the calibration brands into five folds. In each fold $\hat{\beta}$ is
+estimated (Eq.~\ref{eq:beta}) on the brands \emph{outside} the fold; the held-out
+brands are treated as pseudo-targets---their true daily sales are aggregated to
+reporting totals, the daily series is reconstructed from those totals using the
+transferred $\hat{\beta}$, and compared against the known truth. Because
+$\hat\beta$ never sees the held-out brands, this measures genuine cross-unit
+transfer. We run the protocol separately for \textbf{monthly} and \textbf{weekly}
+reporting periods, since weekly periods offer fewer days and less within-period
+structure to exploit.
 
 \paragraph{Baselines.} (i)~\textsc{Uniform}: split each total equally across its
 days ($\beta\!=\!0$), the standard industrial heuristic. (ii)~\textsc{Proxy
 linear}: weight by raw proxy ($\beta\!=\!1$). (iii)~\textsc{Proxy power}: our
 method with estimated $\hat{\beta}$.
 
-\paragraph{Metrics.} We report the symmetric mean absolute percentage error
-(sMAPE) and mean absolute error (MAE) between estimated and true daily sales,
-the coefficient of determination $R^2$ on daily values, and the aggregate
-conservation error $|\sum_t\hat{y}_{b,t}-Y_{b,P}|$. Metrics are averaged over
-the five folds (mean\,$\pm$\,s.d.). We additionally sweep the true elasticity
-$\beta\in[0.3,1.7]$ in an independent simulation to quantify the value of
-estimating $\beta$ rather than fixing it.
+\paragraph{Metrics.} Because every method conserves the reported total by
+construction, a pooled daily $R^2$ credits each method for variance that is fixed
+for free (the between-period level); a flat uniform split already scores
+$R^2\approx0.8$. We therefore lead with the \emph{within-period} (period-demeaned)
+$R^2$, which isolates the \emph{shape} actually being estimated and is $0$ by
+construction for \textsc{uniform}. We also report sMAPE, a per-brand
+scale-free relative MAE (mean absolute error divided by the brand's mean daily
+sales), and MASE relative to the uniform naive. The aggregate conservation error
+$|\sum_{t}\hat{y}_{b,t}-Y_{b,P}|$ is a \emph{constraint} satisfied by all methods
+(including uniform), not an accuracy result, and we report it only as a
+correctness check. Statistics are summarized over all $30\times5$ fold
+evaluations (mean\,$\pm$\,s.d.\ and $2.5$--$97.5\%$ range).
 
 % ================================================================= RESULTS
 \section{Results}\label{sec:results}
@@ -431,78 +460,139 @@ estimating $\beta$ rather than fixing it.
 The full-sample within estimator gives $\hat{\beta}=0.882$, within $0.3\%$ of
 the true shared value $0.88$. Per-brand elasticities are tightly concentrated
 (mean $0.883$, s.d.\ $0.052$; Figure~\ref{fig:beta}), matching the injected
-slack $s_\beta=0.05$ and confirming that a single shared slope is a good
-approximation for this population.
+slack $s_\beta=0.05$. Under the matched generating process this is expected; it
+confirms the estimator transfers cleanly across brands rather than serving as
+independent evidence for the assumption.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.55\linewidth]{figures/fig2_beta_recovery.pdf}
 \caption{Distribution of per-brand estimated elasticities $\hat{\beta}_b$ across
 calibration brands. The mean of the per-brand estimates (green) coincides with
-the true shared value (orange dashed), supporting the shared-relationship
-assumption.}
+the true shared value (orange dashed).}
 \label{fig:beta}
 \end{figure}
 
-\paragraph{Held-out daily reconstruction is accurate.}
-Table~\ref{tab:results} reports the leave-units-out results. Using only the
-transferred elasticity, the proxy method reconstructs held-out daily sales with
-$R^2=0.86$ on average and sMAPE $14.1\%$, versus $R^2=0.80$ and sMAPE $17.1\%$
-for the uniform split---a $17.6\%$ relative reduction in daily error from a
-signal the platform already collects. Aggregate conservation error is zero to
-numerical precision for all methods, as guaranteed by Eq.~\eqref{eq:weights}.
-Figure~\ref{fig:results}A--C shows the held-out fit, the method comparison, and
-within-month shape recovery for an example brand, where the uniform baseline is
-flat by construction while the proxy method tracks the true daily profile.
+\paragraph{Shape recovery, separated from the conserved total.}
+Table~\ref{tab:results} reports the repeated leave-units-out results. The honest
+measure of what the proxy adds is the \emph{within-period} $R^2$: the proxy
+methods recover about $29\%$ of the within-month shape variation
+(within-$R^2=0.29$) and $31\%$ within weeks, whereas the uniform split recovers
+\emph{none} of it ($0$ by construction, despite a pooled daily $R^2$ of $0.80$
+that merely reflects the conserved monthly levels). In scale-free terms the
+proxy lowers per-brand relative MAE from $0.17$ to $0.14$ and attains
+MASE~$\approx0.83$ against the uniform naive---i.e.\ roughly a $17\%$ reduction in
+within-period error from a signal the platform already collects.
+Figure~\ref{fig:withinr2} shows the within-period $R^2$ by method and period,
+and Figure~\ref{fig:results}A,C the held-out fit and an example within-month
+profile, where the uniform baseline is flat by construction while the proxy
+tracks the daily shape.
 
 \begin{table}[t]
 \centering
-\caption{Daily reconstruction accuracy under five-fold leave-units-out
-(mean\,$\pm$\,s.d.\ over folds). Lower is better for sMAPE/MAE; higher for
-$R^2$. The proxy methods use only the elasticity transferred from other brands.}
+\caption{Repeated leave-units-out accuracy ($30$ random partitions
+$\times\,5$ folds; mean\,$\pm$\,s.d.). \textbf{Within-period $R^2$} (shape only,
+$0$ for uniform by construction) is the honest measure of what the proxy adds;
+the pooled daily $R^2$ (not shown) is inflated by the conserved period totals.
+sMAPE lower is better.}
 \label{tab:results}
-\begin{tabular}{lccc}
+\begin{tabular}{lcccc}
 \toprule
-Method & sMAPE (\%) & MAE (units) & $R^2$ \\
+ & \multicolumn{2}{c}{Monthly targets} & \multicolumn{2}{c}{Weekly targets}\\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Method & sMAPE (\%) & within-$R^2$ & sMAPE (\%) & within-$R^2$ \\
 \midrule
-Uniform ($\beta=0$)              & $17.10 \pm 0.29$ & $6.70 \pm 0.16$ & $0.802 \pm 0.135$ \\
-Proxy linear ($\beta=1$)         & $14.13 \pm 0.25$ & $5.59 \pm 0.13$ & $0.858 \pm 0.094$ \\
-Proxy power ($\hat{\beta}$, ours)& $\mathbf{14.09 \pm 0.24}$ & $\mathbf{5.58 \pm 0.13}$ & $\mathbf{0.859 \pm 0.093}$ \\
+Uniform ($\beta=0$)       & $17.13 \pm 0.29$ & $0.00$            & $16.29 \pm 0.27$ & $0.00$ \\
+Proxy linear ($\beta=1$)  & $14.15 \pm 0.18$ & $0.283 \pm 0.023$ & $13.32 \pm 0.20$ & $0.302 \pm 0.024$ \\
+Proxy power ($\hat\beta$) & $14.11 \pm 0.17$ & $0.288 \pm 0.021$ & $13.27 \pm 0.18$ & $0.306 \pm 0.022$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{When does estimating $\beta$ matter?}
-On this population $\hat{\beta}=0.88$ is close to $1$, so \textsc{proxy power}
-only marginally beats \textsc{proxy linear} ($14.09$ vs $14.13$)---a difference
-well within fold-to-fold variability and not, on its own, statistically
-meaningful here. The sweep in
-Figure~\ref{fig:results}D explains why and when the elasticity matters:
-\textsc{proxy power} attains the lowest error across the \emph{entire} range of
-true $\beta$, whereas \textsc{proxy linear} degrades as the true elasticity
-departs from $1$, and \textsc{uniform} is worst throughout and collapses when
-$\beta$ is small. Estimating $\beta$ is therefore a robustness guarantee: it
-costs nothing when $\beta\approx1$ and protects against substantial error when
-the proxy-to-sales relationship is strongly concave or convex.
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.6\linewidth]{figures/fig4_within_period_r2.pdf}
+\caption{Within-period (shape-only) $R^2$ by method, for monthly and weekly
+reporting periods (mean\,$\pm$\,s.d.\ over $30$ random partitions). The uniform
+split recovers none of the within-period shape by construction; the proxy
+recovers roughly $0.29$ (monthly) and $0.31$ (weekly). This is the contribution
+that the pooled daily $R^2$ obscures.}
+\label{fig:withinr2}
+\end{figure}
+
+\paragraph{Raw proxy captures most of the gain; estimating $\beta$ is a
+safeguard.} On this population $\hat{\beta}=0.882$ is close to $1$, so
+\textsc{proxy power} and \textsc{proxy linear} are statistically
+indistinguishable (Table~\ref{tab:results}); essentially all of the improvement
+over uniform comes from \emph{using the proxy at all}, not from estimating the
+elasticity. The value of estimating $\beta$ appears only when the true
+relationship departs from $\beta=1$: the sweep in Figure~\ref{fig:results}D
+(an independent simulation varying the true $\beta\in[0.3,1.7]$) shows
+\textsc{proxy power} tracking the lowest error throughout, while \textsc{proxy
+linear} degrades as the elasticity moves away from $1$. We therefore present
+estimating $\beta$ as a cheap robustness safeguard, not as the source of the
+headline gain.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{figures/fig3_results.pdf}
 \caption{(\textbf{A})~Held-out true vs.\ estimated daily sales for the proxy
-method (one fold). (\textbf{B})~Daily reconstruction error by method (five-fold
-leave-units-out; error bars are s.d.\ across folds). (\textbf{C})~Within-month
-shape recovery for an example held-out brand: the proxy method tracks the true
-daily profile while the uniform split is flat. (\textbf{D})~Sensitivity sweep:
-the estimated-elasticity method is best across all true $\beta$, justifying
-estimation over fixed weights.}
+method (one fold; the diagonal scatter spans the pooled range). (\textbf{B})~Daily
+sMAPE by method (leave-units-out). (\textbf{C})~Within-month shape recovery for an
+example held-out brand: the proxy tracks the true daily profile while the uniform
+split is flat. (\textbf{D})~Sensitivity sweep: the estimated-elasticity method is
+best across all true $\beta$, justifying estimation over fixed weights as a
+safeguard.}
 \label{fig:results}
 \end{figure}
 
-\paragraph{Application to true target brands.}
-Applying the full-sample $\hat{\beta}$ to all 38 target brands produces a
-complete daily panel whose per-brand totals reproduce the reported aggregates to
-within $9\times10^{-5}\%$ (rounding only), confirming that the integration is
-both fine-grained and exactly reconciled.
+\paragraph{Reconciliation and representativeness.}
+Applying the full-sample $\hat{\beta}$ to all 38 target brands yields a complete
+daily panel whose per-brand totals reproduce the reported aggregates to within
+$9\times10^{-5}\%$ (rounding only). We stress this is a \emph{constraint}
+satisfied by every method, including uniform, not a measure of accuracy. As a
+check on transfer validity, the calibration and target brands have broadly
+comparable behavioral-proxy magnitudes (mean daily proxy $1.35\mathrm{k}$ vs
+$1.47\mathrm{k}$), though calibration brands skew somewhat smaller (medians
+$0.75\mathrm{k}$ vs $1.22\mathrm{k}$)---a caveat for transfer we return to in
+Section~\ref{sec:limitations}.
+
+% ================================================================= ROBUSTNESS
+\section{Robustness to Model Misspecification}\label{sec:robust}
+
+The benchmark above shares the estimator's functional form. To probe what
+happens when it does not, we generate data under two deliberate violations and
+sweep their severity (Figure~\ref{fig:robust}). First, we let a fraction $\phi$
+of each day's sales come from a component \emph{uncorrelated} with the proxy
+(promotions, offline drivers, or measurement error/bots in the proxy);
+$\phi=0$ is the matched case and $\phi=1$ means sales carry no proxy information.
+Second, we replace the power law with a saturating (concave) link, so the
+log-log estimator is misspecified by construction.
+
+The degradation is graceful and bounded. As $\phi$ rises, the within-month $R^2$
+of the proxy method falls smoothly from $0.29$ toward $0$, reaching the uniform
+baseline (and never dropping below it) once sales are essentially
+proxy-independent ($\phi\gtrsim0.7$). Under the saturating link the proxy starts
+lower (within-$R^2\approx0.11$ even at $\phi=0$) and the estimated elasticity is
+attenuated, exactly as misspecification theory predicts. Two messages follow.
+The method cannot manufacture shape information that the proxy does not carry;
+and because the weights still conserve the total, it can never do \emph{worse}
+than the uniform split a team would otherwise use. The practical value of the
+approach is thus contingent on sales being genuinely proxy-driven---an empirical
+property of each ecosystem that must be checked on its own calibration units,
+not assumed.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig5_misspecification.pdf}
+\caption{Graceful degradation under model misspecification. (\textbf{A})~As the
+proxy-independent share $\phi$ of sales grows, the proxy method's within-month
+$R^2$ decays to the uniform baseline ($0$) and never falls below it.
+(\textbf{B})~Under an additional non-log-linear (saturating) link the estimator
+is misspecified and recovers less shape even at $\phi=0$. The method's value is
+contingent on sales being proxy-driven.}
+\label{fig:robust}
+\end{figure}
 
 % ================================================================= DISCUSSION
 \section{Discussion}\label{sec:discussion}
@@ -522,8 +612,10 @@ indicator is a behavioral proxy and the indicator coefficient is
 \emph{transferred across units} rather than fit per series. This is the key
 departure: classical estimators require each series' own aggregates to learn its
 indicator relationship, whereas the shared-elasticity assumption supplies that
-relationship externally. Our leave-units-out validation is, in effect, an
-empirical test of whether that external relationship is valid.
+relationship externally. On real data, leave-units-out validation on the
+calibration brands is the operational test of whether that external relationship
+holds; on our synthetic benchmark it instead confirms correct, stable transfer
+under a known shared mechanism.
 
 \paragraph{When the assumption holds.}
 Complete pooling (one shared $\beta$) is justified when brands share a conversion
@@ -543,19 +635,30 @@ natural confirmatory step we leave to future work.
 % ================================================================= LIMITATIONS
 \section{Limitations}\label{sec:limitations}
 
-First, disaggregated daily values are \emph{estimates}, not measurements;
-validation conserves and reconstructs aggregates but cannot certify any single
-day for a true target brand, which by definition lacks ground truth. Daily
-figures should be labelled as modeled. Second, the method assumes the proxy is
-informative and available for all brands and that its measurement is comparable
-across brands; a brand whose proxy is mismeasured or whose conversion is
-proxy-independent will be poorly served. Third, our evidence is on synthetic
-data calibrated to one operational system; while the generating process embeds
-realistic structure and an honest assumption-violation ($s_\beta>0$), external
-validity to other ecosystems should be confirmed on their own calibration units.
-Fourth, the shared-elasticity model is intentionally simple; richer
-specifications (lagged proxy effects, promotion indicators, hierarchical
-slopes) are natural extensions.
+The most important limitation is evidentiary. Our quantitative results come from
+a synthetic benchmark whose data-generating process \emph{shares the estimator's
+functional form} (a shared log-log elasticity plus small per-brand slack and iid
+noise). That match means the in-sample experiments primarily demonstrate
+\emph{correct, well-behaved estimation} and the \emph{sensitivity} mapped in
+Section~\ref{sec:robust}; they do not, and cannot, establish that real affiliate
+ecosystems satisfy the shared-elasticity assumption. The decisive evidence would
+be a real-data study---ideally on brands with true daily sales, held out to test
+whether an elasticity learned on one set predicts daily shape on another; we were
+unable to release such data here for the legal and commercial-confidentiality
+reasons that motivate the synthetic release, and we flag this as the primary
+direction for follow-up. Second, the headline improvement is measured chiefly
+against a uniform split; against raw-proxy weighting the estimated-elasticity
+refinement is statistically indistinguishable on this population, so the novel
+ingredient is best read as a safeguard (Section~\ref{sec:robust}), not a
+large empirical gain. Third, disaggregated daily values are \emph{estimates},
+not measurements, and should be labelled as modeled; conservation of the
+reported total is a constraint, not independent validation. Fourth, calibration
+brands (the daily reporters) may differ systematically from target brands in
+size, sector, or sophistication---our synthetic splits are only broadly
+comparable on proxy magnitude---so a transferred elasticity may not apply
+uniformly; sector- or size-stratified pooling is the natural mitigation. Fifth,
+the model is intentionally simple; lagged proxy effects, explicit promotion
+indicators, and hierarchical (partial-pooling) slopes are natural extensions.
 
 % ================================================================= ETHICS
 \section{Ethical, Legal, and Privacy Considerations}\label{sec:ethics}
@@ -578,22 +681,30 @@ identifiable from any released artifact.
 We introduced cross-unit temporal disaggregation for affiliate-marketing
 ecosystems: a method that estimates the daily sales of low-frequency reporters
 by transferring a shared behavioral-proxy elasticity learned from brands with
-daily data, while exactly conserving reported aggregates. The approach unifies
-heterogeneous partner feeds into a single daily panel, is deployed in a
-production pipeline orchestrated by a scheduled large-language-model agent, and
-on a public synthetic benchmark recovers the shared elasticity to within $0.3\%$
-and reconstructs held-out daily sales at $R^2=0.86$, cutting daily error by
-$17.6\%$ over the uniform split. The estimated elasticity provides robustness
-across the full range of proxy-to-sales relationships. Future work includes
-hierarchical (partial-pooling) elasticities, richer behavioral covariates, and
-validation across multiple ecosystems.
+daily data, while exactly conserving reported aggregates. The analytical
+contribution---intercept cancellation, so only a shared elasticity is needed and
+brands with zero daily history become disaggregable---is, we believe, the
+durable one. Empirically, on a public synthetic benchmark the proxy recovers
+about $29\%$ of within-period sales shape that a uniform split cannot
+(equivalently $\approx17\%$ lower within-period error), for both monthly and
+weekly reporters, and degrades gracefully toward the uniform baseline under
+controlled misspecification. Two honest caveats temper this: most of the gain
+comes from using the proxy at all rather than from estimating the elasticity
+(which we therefore frame as a safeguard), and the benchmark shares the
+estimator's functional form, so it cannot stand in for real-data validation.
+The clear next step is exactly that real-data study---learning the elasticity on
+some brands with true daily sales and testing daily-shape prediction on
+others---alongside hierarchical (partial-pooling) elasticities and richer
+behavioral covariates.
 
 % ================================================================= STATEMENTS
 \section*{Data and Code Availability}
-All code (data generator, estimation, experiments, and figure scripts) and the
-fully synthetic dataset are released at
+All code (data generator, estimation, experiments, robustness study, and figure
+scripts) and the fully synthetic dataset are released at
 \url{https://github.com/Parsa-Hajian/affiliate-granularity-proxy}.
-The dataset is reproducible from the published seed.
+The dataset is reproducible from the published seed, and every reported number
+is regenerated by the released scripts. Bibliographic references were verified
+against publisher DOIs and at least two independent indexers.
 
 \section*{Author Contributions}
 P.H.\ designed the method, implemented the system and experiments, and drafted
