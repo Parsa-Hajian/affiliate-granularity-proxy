@@ -1,32 +1,25 @@
 {
-  "seed_estimation": 7,
+  "n_repeats": 30,
+  "n_folds": 5,
   "beta_true_shared": 0.88,
   "beta_estimated_full_sample": 0.8824,
   "per_brand_beta_mean": 0.8827,
-  "per_brand_beta_std": 0.0519,
+  "per_brand_beta_sd": 0.0519,
   "n_calibration_brands": 22,
   "n_target_brands": 38,
-  "cv_summary": {
-    "proxy_linear(beta=1)": {
-      "sMAPE_mean": 14.133,
-      "sMAPE_std": 0.254,
-      "MAE_mean": 5.5864,
-      "R2_mean": 0.8575
-    },
-    "proxy_power(beta_hat)": {
-      "sMAPE_mean": 14.093,
-      "sMAPE_std": 0.241,
-      "MAE_mean": 5.5787,
-      "R2_mean": 0.8587
-    },
-    "uniform": {
-      "sMAPE_mean": 17.104,
-      "sMAPE_std": 0.288,
-      "MAE_mean": 6.6989,
-      "R2_mean": 0.802
-    }
+  "monthly": {
+    "proxy_linear": {"sMAPE_mean": 14.152, "sMAPE_sd": 0.176, "within_R2_mean": 0.283, "within_R2_sd": 0.023, "rel_MAE_mean": 0.141, "MASE_vs_uniform_mean": 0.833, "pooled_R2_mean": 0.877},
+    "proxy_power": {"sMAPE_mean": 14.111, "sMAPE_sd": 0.167, "within_R2_mean": 0.288, "within_R2_sd": 0.021, "rel_MAE_mean": 0.141, "MASE_vs_uniform_mean": 0.831, "pooled_R2_mean": 0.878},
+    "uniform": {"sMAPE_mean": 17.131, "sMAPE_sd": 0.286, "within_R2_mean": 0.0, "within_R2_sd": 0.0, "rel_MAE_mean": 0.17, "MASE_vs_uniform_mean": 1.0, "pooled_R2_mean": 0.827}
   },
-  "target_aggregate_conservation_max_pct_err": 8.7e-05,
-  "error_reduction_vs_uniform_pct": 17.6,
-  "error_reduction_vs_proxy_linear_pct": 0.28
+  "weekly": {
+    "proxy_linear": {"sMAPE_mean": 13.322, "sMAPE_sd": 0.195, "within_R2_mean": 0.302, "within_R2_sd": 0.024, "rel_MAE_mean": 0.133, "MASE_vs_uniform_mean": 0.822, "pooled_R2_mean": 0.891},
+    "proxy_power": {"sMAPE_mean": 13.272, "sMAPE_sd": 0.184, "within_R2_mean": 0.306, "within_R2_sd": 0.022, "rel_MAE_mean": 0.132, "MASE_vs_uniform_mean": 0.819, "pooled_R2_mean": 0.892},
+    "uniform": {"sMAPE_mean": 16.29, "sMAPE_sd": 0.271, "within_R2_mean": 0.0, "within_R2_sd": 0.0, "rel_MAE_mean": 0.162, "MASE_vs_uniform_mean": 1.0, "pooled_R2_mean": 0.843}
+  },
+  "target_conservation_max_pct_err": 8.7e-05,
+  "representativeness_mean_daily_proxy_by_role": {
+    "calibration": {"mean": 1354.4, "median": 748.9, "std": 2013.1},
+    "target": {"mean": 1471.6, "median": 1220.3, "std": 1423.5}
+  }
 }

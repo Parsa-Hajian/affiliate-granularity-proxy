@@ -1,0 +1,4 @@
+,sMAPE_mean,sMAPE_sd,sMAPE_p2.5,sMAPE_p97.5,pooled_R2_mean,within_R2_mean,within_R2_sd,rel_MAE_mean,MASE_vs_uniform_mean
+proxy_linear,14.152,0.176,13.778,14.446,0.877,0.283,0.023,0.141,0.833
+proxy_power,14.111,0.167,13.762,14.374,0.878,0.288,0.021,0.141,0.831
+uniform,17.131,0.286,16.569,17.679,0.827,0.0,0.0,0.17,1.0
